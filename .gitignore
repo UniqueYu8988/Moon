@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+
+# Downloaded NASA data and generated runtime files
+cache/
+moon-phase-henan-1600x2560.png
+*-status.json
+*.download
+
+# Earlier visual experiments that are not part of Moon
+build_rhea_wallpaper.py
+build_saturn_wallpaper.py
+build_wallpapers.py
+update_moon_wallpaper.py
+
+# Editor and OS files
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
