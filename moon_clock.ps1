@@ -57,9 +57,9 @@ $window.Background = [System.Windows.Media.Brushes]::Transparent
 $window.ShowInTaskbar = $false
 $window.ShowActivated = $false
 $window.Topmost = $false
-$window.Height = 145
 
 $script:lastPlacement = ""
+$script:clockMode = ""
 function Set-ClockPlacement {
     $portrait = [System.Windows.Forms.Screen]::AllScreens |
         Where-Object { $_.Bounds.Height -gt $_.Bounds.Width } |
@@ -76,13 +76,15 @@ function Set-ClockPlacement {
     $placement = "{0}|{1},{2},{3},{4}|{5}" -f $target.DeviceName, $target.Bounds.X, $target.Bounds.Y, $target.Bounds.Width, $target.Bounds.Height, $mode
     if ($placement -eq $script:lastPlacement) { return }
 
-    $window.Width = if ($portrait) { 430 } else { 500 }
+    $window.Width = if ($portrait) { 430 } else { 400 }
+    $window.Height = if ($portrait) { 145 } else { 112 }
     $window.Left = $target.Bounds.X + (($target.Bounds.Width - $window.Width) / 2)
     if ($portrait) {
         $window.Top = $target.Bounds.Y + ($target.Bounds.Height * 0.245)
     } else {
         $window.Top = $target.Bounds.Y + ($target.Bounds.Height * 0.04)
     }
+    $script:clockMode = $mode
     $script:lastPlacement = $placement
 }
 Set-ClockPlacement
@@ -120,6 +122,26 @@ $date.FontStretch = [System.Windows.FontStretches]::Expanded
 $date.Foreground = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(210,220,220,220))
 [void]$grid.Children.Add($date)
 
+$script:lastTypographyMode = ""
+function Set-ClockTypography {
+    if ($script:clockMode -eq $script:lastTypographyMode) { return }
+    if ($script:clockMode -eq "portrait") {
+        $time.FontSize = 54
+        $line.Width = 270
+        $line.Margin = New-Object System.Windows.Thickness(0,74,0,0)
+        $date.FontSize = 19
+        $date.Margin = New-Object System.Windows.Thickness(0,84,0,0)
+    } else {
+        $time.FontSize = 40
+        $line.Width = 210
+        $line.Margin = New-Object System.Windows.Thickness(0,56,0,0)
+        $date.FontSize = 15
+        $date.Margin = New-Object System.Windows.Thickness(0,65,0,0)
+    }
+    $script:lastTypographyMode = $script:clockMode
+}
+Set-ClockTypography
+
 $window.Add_SourceInitialized({
     $helper = New-Object System.Windows.Interop.WindowInteropHelper($window)
     $style = [MoonClockNative]::GetWindowLong($helper.Handle, [MoonClockNative]::GWL_EXSTYLE)
@@ -148,7 +170,7 @@ function Update-Clock {
 
 $timer = New-Object System.Windows.Threading.DispatcherTimer
 $timer.Interval = [TimeSpan]::FromSeconds(1)
-$timer.Add_Tick({ Set-ClockPlacement; Update-Clock })
+$timer.Add_Tick({ Set-ClockPlacement; Set-ClockTypography; Update-Clock })
 Update-Clock
 $window.Add_Closed({ $timer.Stop() })
 $timer.Start()
