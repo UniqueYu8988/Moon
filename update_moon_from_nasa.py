@@ -27,7 +27,7 @@ KNOWN_DATASETS = {2026: 5587}
 UTC_OFFSET = dt.timedelta(hours=8)
 ZHENGZHOU_LATITUDE = 34.7466
 ZHENGZHOU_LONGITUDE = 113.6254
-ORIENTATION_VERSION = "zhengzhou-zenith-up-current-hour-v3"
+ORIENTATION_VERSION = "zhengzhou-zenith-up-current-hour-adaptive-clock-v5"
 
 
 def dataset_for_year(year: int) -> dict:
@@ -268,15 +268,15 @@ def compose(frame_path: Path, rotation_degrees: float) -> None:
         1180,
         (800, 1720),
     )
-    # The laptop layout is native 2560x1600. The Moon sits low and to the right,
-    # leaving a calm black field for desktop icons on the left.
+    # The laptop layout is native 2560x1600. The Moon is centered beneath the
+    # live clock widget, with enough separation to keep both elements legible.
     render_variant(
         frame_path,
         rotation_degrees,
         LANDSCAPE_OUTPUT,
         (2560, 1600),
-        1120,
-        (1900, 1020),
+        980,
+        (1280, 800),
     )
 
 
