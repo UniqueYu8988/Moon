@@ -3,7 +3,7 @@ __pycache__/
 
 # Downloaded NASA data and generated runtime files
 cache/
-moon-phase-henan-1600x2560.png
+moon-phase-henan-*.png
 *-status.json
 *.download
 

@@ -17,9 +17,10 @@ from PIL import Image, ImageFilter
 ROOT = Path(__file__).resolve().parent
 CACHE = ROOT / "cache"
 CACHE.mkdir(exist_ok=True)
-OUTPUT = ROOT / "moon-phase-henan-1600x2560.png"
+PORTRAIT_OUTPUT = ROOT / "moon-phase-henan-1600x2560.png"
+LANDSCAPE_OUTPUT = ROOT / "moon-phase-henan-2560x1600.png"
 STATUS = ROOT / "nasa-moon-status.json"
-APPLY_SCRIPT = ROOT / "apply_portrait_wallpaper.ps1"
+APPLY_SCRIPT = ROOT / "apply_adaptive_wallpaper.ps1"
 
 NASA_SEARCH_URL = "https://svs.gsfc.nasa.gov/api/search/"
 KNOWN_DATASETS = {2026: 5587}
@@ -208,7 +209,11 @@ def apply_naked_eye_shadow(moon: Image.Image) -> Image.Image:
     return Image.fromarray(pixels.astype(np.uint8), "RGBA")
 
 
-def compose(frame_path: Path, rotation_degrees: float) -> None:
+def prepare_moon(
+    frame_path: Path,
+    rotation_degrees: float,
+    diameter: int,
+) -> Image.Image:
     source = Image.open(frame_path).convert("RGBA")
     arr = np.asarray(source)
     alpha = arr[..., 3]
@@ -228,19 +233,51 @@ def compose(frame_path: Path, rotation_degrees: float) -> None:
         min(source.height, int(ys.max()) + margin + 1),
     )
     moon = source.crop(box)
-    diameter = 1180
     scale = min(diameter / moon.width, diameter / moon.height)
     new_size = (max(1, round(moon.width * scale)), max(1, round(moon.height * scale)))
     moon = moon.resize(new_size, Image.Resampling.LANCZOS)
     moon = moon.rotate(rotation_degrees, resample=Image.Resampling.BICUBIC, expand=True)
     moon = apply_naked_eye_shadow(moon)
     moon = moon.filter(ImageFilter.UnsharpMask(radius=0.40, percent=24, threshold=2))
+    return moon
 
-    canvas = Image.new("RGBA", (1600, 2560), (0, 0, 0, 255))
-    x = 800 - moon.width // 2
-    y = 1720 - moon.height // 2
+
+def render_variant(
+    frame_path: Path,
+    rotation_degrees: float,
+    output: Path,
+    canvas_size: tuple[int, int],
+    diameter: int,
+    center: tuple[int, int],
+) -> None:
+    moon = prepare_moon(frame_path, rotation_degrees, diameter)
+    canvas = Image.new("RGBA", canvas_size, (0, 0, 0, 255))
+    x = center[0] - moon.width // 2
+    y = center[1] - moon.height // 2
     canvas.alpha_composite(moon, (x, y))
-    canvas.convert("RGB").save(OUTPUT, optimize=True)
+    canvas.convert("RGB").save(output, optimize=True)
+
+
+def compose(frame_path: Path, rotation_degrees: float) -> None:
+    # The portrait layout preserves the original secondary-monitor composition.
+    render_variant(
+        frame_path,
+        rotation_degrees,
+        PORTRAIT_OUTPUT,
+        (1600, 2560),
+        1180,
+        (800, 1720),
+    )
+    # The laptop layout is native 2560x1600. The Moon sits low and to the right,
+    # leaving a calm black field for desktop icons on the left.
+    render_variant(
+        frame_path,
+        rotation_degrees,
+        LANDSCAPE_OUTPUT,
+        (2560, 1600),
+        1120,
+        (1900, 1020),
+    )
 
 
 def apply_wallpaper() -> None:
@@ -248,7 +285,9 @@ def apply_wallpaper() -> None:
         [
             "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
             "-WindowStyle", "Hidden",
-            "-File", str(APPLY_SCRIPT), "-Wallpaper", str(OUTPUT),
+            "-File", str(APPLY_SCRIPT),
+            "-PortraitWallpaper", str(PORTRAIT_OUTPUT),
+            "-LandscapeWallpaper", str(LANDSCAPE_OUTPUT),
         ],
         check=True,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
@@ -264,7 +303,8 @@ def main() -> int:
         status.get("local_date") == local_date.isoformat()
         and status.get("orientation") == ORIENTATION_VERSION
         and status.get("observation_slot_utc") == observation_slot
-        and OUTPUT.exists()
+        and PORTRAIT_OUTPUT.exists()
+        and LANDSCAPE_OUTPUT.exists()
     ):
         apply_wallpaper()
         print(f"Already current: {local_date} frame {frame}")
@@ -322,7 +362,7 @@ def main() -> int:
         return 0
     except Exception as exc:
         # Preserve and re-apply the last valid wallpaper. A later scheduled run retries.
-        if OUTPUT.exists():
+        if PORTRAIT_OUTPUT.exists() and LANDSCAPE_OUTPUT.exists():
             apply_wallpaper()
         print(str(exc), file=sys.stderr)
         return 1

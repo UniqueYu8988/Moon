@@ -1,6 +1,7 @@
 $taskNames = @(
     "Henan NASA Moon Wallpaper",
-    "Henan NASA Moon Offline Library"
+    "Henan NASA Moon Offline Library",
+    "Moon Display Watcher"
 )
 
 foreach ($taskName in $taskNames) {

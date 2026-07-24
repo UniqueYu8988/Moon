@@ -12,6 +12,7 @@ if (-not $python) {
 & $python -m pip install -r (Join-Path $PSScriptRoot "requirements.txt")
 & (Join-Path $PSScriptRoot "install_windows_moon_task.ps1")
 & (Join-Path $PSScriptRoot "install_windows_moon_library_task.ps1")
+& (Join-Path $PSScriptRoot "install_windows_display_watcher_task.ps1")
 & $python (Join-Path $PSScriptRoot "update_moon_from_nasa.py")
 
 Write-Host "Moon is installed. The wallpaper refreshes every two hours in the background."
