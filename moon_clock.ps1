@@ -78,8 +78,8 @@ function Set-ClockPlacement {
     $placement = "{0}|{1},{2},{3},{4}|{5}" -f $target.DeviceName, $target.Bounds.X, $target.Bounds.Y, $target.Bounds.Width, $target.Bounds.Height, $mode
     if ($placement -eq $script:lastPlacement) { return }
 
-    $desiredWidth = if ($portrait) { 430 } else { 400 }
-    $desiredHeight = if ($portrait) { 145 } else { 112 }
+    $desiredWidth = if ($portrait) { 430 } else { 800 }
+    $desiredHeight = if ($portrait) { 145 } else { 224 }
     $window.Width = $desiredWidth / $script:dpiScale
     $window.Height = $desiredHeight / $script:dpiScale
     $window.Left = ($target.Bounds.X + (($target.Bounds.Width - $desiredWidth) / 2)) / $script:dpiScale
@@ -138,11 +138,11 @@ function Set-ClockTypography {
         $date.FontSize = 19 / $script:dpiScale
         $date.Margin = New-Object System.Windows.Thickness(0,(84 / $script:dpiScale),0,0)
     } else {
-        $time.FontSize = 40 / $script:dpiScale
-        $line.Width = 210 / $script:dpiScale
-        $line.Margin = New-Object System.Windows.Thickness(0,(56 / $script:dpiScale),0,0)
-        $date.FontSize = 15 / $script:dpiScale
-        $date.Margin = New-Object System.Windows.Thickness(0,(65 / $script:dpiScale),0,0)
+        $time.FontSize = 80 / $script:dpiScale
+        $line.Width = 420 / $script:dpiScale
+        $line.Margin = New-Object System.Windows.Thickness(0,(112 / $script:dpiScale),0,0)
+        $date.FontSize = 30 / $script:dpiScale
+        $date.Margin = New-Object System.Windows.Thickness(0,(130 / $script:dpiScale),0,0)
     }
     $script:lastTypographyMode = $script:clockMode
 }
