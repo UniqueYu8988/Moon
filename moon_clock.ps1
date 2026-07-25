@@ -15,6 +15,7 @@ public static class MoonClockNative {
   [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
   [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
   [DllImport("user32.dll")] public static extern IntPtr SetParent(IntPtr child, IntPtr parent);
+  [DllImport("user32.dll")] public static extern uint GetDpiForSystem();
   public const int GWL_EXSTYLE = -20;
   public const int GWL_STYLE = -16;
   public const int WS_EX_TRANSPARENT = 0x20;
@@ -60,6 +61,7 @@ $window.Topmost = $false
 
 $script:lastPlacement = ""
 $script:clockMode = ""
+$script:dpiScale = [MoonClockNative]::GetDpiForSystem() / 96.0
 function Set-ClockPlacement {
     $portrait = [System.Windows.Forms.Screen]::AllScreens |
         Where-Object { $_.Bounds.Height -gt $_.Bounds.Width } |
@@ -76,13 +78,15 @@ function Set-ClockPlacement {
     $placement = "{0}|{1},{2},{3},{4}|{5}" -f $target.DeviceName, $target.Bounds.X, $target.Bounds.Y, $target.Bounds.Width, $target.Bounds.Height, $mode
     if ($placement -eq $script:lastPlacement) { return }
 
-    $window.Width = if ($portrait) { 430 } else { 400 }
-    $window.Height = if ($portrait) { 145 } else { 112 }
-    $window.Left = $target.Bounds.X + (($target.Bounds.Width - $window.Width) / 2)
+    $desiredWidth = if ($portrait) { 430 } else { 400 }
+    $desiredHeight = if ($portrait) { 145 } else { 112 }
+    $window.Width = $desiredWidth / $script:dpiScale
+    $window.Height = $desiredHeight / $script:dpiScale
+    $window.Left = ($target.Bounds.X + (($target.Bounds.Width - $desiredWidth) / 2)) / $script:dpiScale
     if ($portrait) {
-        $window.Top = $target.Bounds.Y + ($target.Bounds.Height * 0.245)
+        $window.Top = ($target.Bounds.Y + ($target.Bounds.Height * 0.245)) / $script:dpiScale
     } else {
-        $window.Top = $target.Bounds.Y + ($target.Bounds.Height * 0.04)
+        $window.Top = ($target.Bounds.Y + ($target.Bounds.Height * 0.04)) / $script:dpiScale
     }
     $script:clockMode = $mode
     $script:lastPlacement = $placement
@@ -94,7 +98,8 @@ $grid.Background = [System.Windows.Media.Brushes]::Transparent
 $window.Content = $grid
 
 $time = New-Object System.Windows.Controls.TextBlock
-$time.HorizontalAlignment = "Center"
+$time.HorizontalAlignment = "Stretch"
+$time.TextAlignment = [System.Windows.TextAlignment]::Center
 $time.VerticalAlignment = "Top"
 $time.FontFamily = New-Object System.Windows.Media.FontFamily("Bahnschrift SemiBold")
 $time.FontSize = 54
@@ -113,7 +118,8 @@ $line.Margin = New-Object System.Windows.Thickness(0,74,0,0)
 [void]$grid.Children.Add($line)
 
 $date = New-Object System.Windows.Controls.TextBlock
-$date.HorizontalAlignment = "Center"
+$date.HorizontalAlignment = "Stretch"
+$date.TextAlignment = [System.Windows.TextAlignment]::Center
 $date.VerticalAlignment = "Top"
 $date.Margin = New-Object System.Windows.Thickness(0,84,0,0)
 $date.FontFamily = New-Object System.Windows.Media.FontFamily("Bahnschrift SemiCondensed")
@@ -126,17 +132,17 @@ $script:lastTypographyMode = ""
 function Set-ClockTypography {
     if ($script:clockMode -eq $script:lastTypographyMode) { return }
     if ($script:clockMode -eq "portrait") {
-        $time.FontSize = 54
-        $line.Width = 270
-        $line.Margin = New-Object System.Windows.Thickness(0,74,0,0)
-        $date.FontSize = 19
-        $date.Margin = New-Object System.Windows.Thickness(0,84,0,0)
+        $time.FontSize = 54 / $script:dpiScale
+        $line.Width = 270 / $script:dpiScale
+        $line.Margin = New-Object System.Windows.Thickness(0,(74 / $script:dpiScale),0,0)
+        $date.FontSize = 19 / $script:dpiScale
+        $date.Margin = New-Object System.Windows.Thickness(0,(84 / $script:dpiScale),0,0)
     } else {
-        $time.FontSize = 40
-        $line.Width = 210
-        $line.Margin = New-Object System.Windows.Thickness(0,56,0,0)
-        $date.FontSize = 15
-        $date.Margin = New-Object System.Windows.Thickness(0,65,0,0)
+        $time.FontSize = 40 / $script:dpiScale
+        $line.Width = 210 / $script:dpiScale
+        $line.Margin = New-Object System.Windows.Thickness(0,(56 / $script:dpiScale),0,0)
+        $date.FontSize = 15 / $script:dpiScale
+        $date.Margin = New-Object System.Windows.Thickness(0,(65 / $script:dpiScale),0,0)
     }
     $script:lastTypographyMode = $script:clockMode
 }
