@@ -11,6 +11,8 @@ import time
 ROOT = Path(__file__).resolve().parent
 UPDATER = ROOT / "update_moon_from_nasa.py"
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+CLOCK_SCRIPT = ROOT / "moon_clock.ps1"
+CLOCK_TASK_NAME = "Local Moon Clock Widget"
 
 
 class RECT(ctypes.Structure):
@@ -55,12 +57,58 @@ def run_update() -> None:
     )
 
 
+def start_clock() -> None:
+    subprocess.run(
+        ["schtasks.exe", "/Run", "/TN", CLOCK_TASK_NAME],
+        creationflags=CREATE_NO_WINDOW,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+
+def restart_clock() -> None:
+    # Stop only this project's WPF child process. Letting the VBS launcher exit
+    # naturally avoids the orphaned duplicate produced by ending the task first.
+    escaped_path = str(CLOCK_SCRIPT).replace("'", "''")
+    command = (
+        f"$target = '{escaped_path}'; "
+        "Get-CimInstance Win32_Process | "
+        "Where-Object { $_.Name -eq 'powershell.exe' -and "
+        "$_.CommandLine -like ('*' + $target + '*') } | "
+        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
+    )
+    subprocess.run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            command,
+        ],
+        creationflags=CREATE_NO_WINDOW,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    time.sleep(2)
+    start_clock()
+
+
 def main() -> int:
     # Apply the correct layout immediately when the watcher starts at logon.
     run_update()
+    start_clock()
     signature = display_signature()
+    health_check_at = time.monotonic() + 60
     while True:
         time.sleep(5)
+        if time.monotonic() >= health_check_at:
+            start_clock()
+            health_check_at = time.monotonic() + 60
         candidate = display_signature()
         if candidate == signature:
             continue
@@ -73,6 +121,7 @@ def main() -> int:
             continue
         signature = confirmed
         run_update()
+        restart_clock()
 
 
 if __name__ == "__main__":
