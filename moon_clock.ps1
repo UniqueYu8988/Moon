@@ -79,13 +79,15 @@ function Set-ClockPlacement {
     if ($placement -eq $script:lastPlacement) { return }
 
     if ($portrait) {
-        # Preserve the original portrait design exactly. The clock process is
-        # restarted after a topology change so WPF initializes against the
-        # desktop monitors' DPI instead of inheriting the laptop's 200% DPI.
-        $window.Width = 430
-        $window.Height = 145
-        $window.Left = $target.Bounds.X + (($target.Bounds.Width - $window.Width) / 2)
-        $window.Top = $target.Bounds.Y + ($target.Bounds.Height * 0.245)
+        # Preserve the original portrait design in rendered desktop pixels.
+        # The watcher restarts this process after a topology change, ensuring
+        # dpiScale belongs to the current desktop rather than the laptop mode.
+        $desiredWidth = 430
+        $desiredHeight = 145
+        $window.Width = $desiredWidth / $script:dpiScale
+        $window.Height = $desiredHeight / $script:dpiScale
+        $window.Left = ($target.Bounds.X + (($target.Bounds.Width - $desiredWidth) / 2)) / $script:dpiScale
+        $window.Top = ($target.Bounds.Y + ($target.Bounds.Height * 0.245)) / $script:dpiScale
     } else {
         $desiredWidth = 800
         $desiredHeight = 224
@@ -138,11 +140,11 @@ $script:lastTypographyMode = ""
 function Set-ClockTypography {
     if ($script:clockMode -eq $script:lastTypographyMode) { return }
     if ($script:clockMode -eq "portrait") {
-        $time.FontSize = 54
-        $line.Width = 270
-        $line.Margin = New-Object System.Windows.Thickness(0,74,0,0)
-        $date.FontSize = 19
-        $date.Margin = New-Object System.Windows.Thickness(0,84,0,0)
+        $time.FontSize = 54 / $script:dpiScale
+        $line.Width = 270 / $script:dpiScale
+        $line.Margin = New-Object System.Windows.Thickness(0,(74 / $script:dpiScale),0,0)
+        $date.FontSize = 19 / $script:dpiScale
+        $date.Margin = New-Object System.Windows.Thickness(0,(84 / $script:dpiScale),0,0)
     } else {
         $time.FontSize = 80 / $script:dpiScale
         $line.Width = 420 / $script:dpiScale
