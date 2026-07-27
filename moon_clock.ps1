@@ -79,15 +79,14 @@ function Set-ClockPlacement {
     if ($placement -eq $script:lastPlacement) { return }
 
     if ($portrait) {
-        # Preserve the original portrait design in rendered desktop pixels.
-        # The watcher restarts this process after a topology change, ensuring
-        # dpiScale belongs to the current desktop rather than the laptop mode.
-        $desiredWidth = 430
-        $desiredHeight = 145
-        $window.Width = $desiredWidth / $script:dpiScale
-        $window.Height = $desiredHeight / $script:dpiScale
-        $window.Left = ($target.Bounds.X + (($target.Bounds.Width - $desiredWidth) / 2)) / $script:dpiScale
-        $window.Top = ($target.Bounds.Y + ($target.Bounds.Height * 0.245)) / $script:dpiScale
+        # These are the exact WPF values from the original portrait clock.
+        # Only the horizontal coordinate is translated between desktop pixels
+        # and WPF units so the 150%-scaled window remains centered.
+        $window.Width = 430
+        $window.Height = 145
+        $renderedWidth = $window.Width * $script:dpiScale
+        $window.Left = ($target.Bounds.X + (($target.Bounds.Width - $renderedWidth) / 2)) / $script:dpiScale
+        $window.Top = $target.Bounds.Y + ($target.Bounds.Height * 0.245)
     } else {
         $desiredWidth = 800
         $desiredHeight = 224
@@ -140,11 +139,11 @@ $script:lastTypographyMode = ""
 function Set-ClockTypography {
     if ($script:clockMode -eq $script:lastTypographyMode) { return }
     if ($script:clockMode -eq "portrait") {
-        $time.FontSize = 54 / $script:dpiScale
-        $line.Width = 270 / $script:dpiScale
-        $line.Margin = New-Object System.Windows.Thickness(0,(74 / $script:dpiScale),0,0)
-        $date.FontSize = 19 / $script:dpiScale
-        $date.Margin = New-Object System.Windows.Thickness(0,(84 / $script:dpiScale),0,0)
+        $time.FontSize = 54
+        $line.Width = 270
+        $line.Margin = New-Object System.Windows.Thickness(0,74,0,0)
+        $date.FontSize = 19
+        $date.Margin = New-Object System.Windows.Thickness(0,84,0,0)
     } else {
         $time.FontSize = 80 / $script:dpiScale
         $line.Width = 420 / $script:dpiScale
