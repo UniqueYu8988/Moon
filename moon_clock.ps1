@@ -6,6 +6,14 @@ $en = [System.Globalization.CultureInfo]::GetCultureInfo("en-US")
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
+[ComImport, Guid("B92B56A9-8B55-4E14-9A89-0199BBB6F93B"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IClockDesktopWallpaper {
+  void SetWallpaper([MarshalAs(UnmanagedType.LPWStr)] string id, [MarshalAs(UnmanagedType.LPWStr)] string path);
+  [return: MarshalAs(UnmanagedType.LPWStr)] string GetWallpaper([MarshalAs(UnmanagedType.LPWStr)] string id);
+  [return: MarshalAs(UnmanagedType.LPWStr)] string GetMonitorDevicePathAt(uint index);
+  uint GetMonitorDevicePathCount();
+  [PreserveSig] int GetMonitorRECT([MarshalAs(UnmanagedType.LPWStr)] string id, out MoonClockNative.PhysicalRect rect);
+}
 public static class MoonClockNative {
   public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
   [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -16,6 +24,33 @@ public static class MoonClockNative {
   [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
   [DllImport("user32.dll")] public static extern IntPtr SetParent(IntPtr child, IntPtr parent);
   [DllImport("user32.dll")] public static extern uint GetDpiForSystem();
+  [StructLayout(LayoutKind.Sequential)] public struct PhysicalRect {
+    public int Left, Top, Right, Bottom;
+    public int Width { get { return Right - Left; } }
+    public int Height { get { return Bottom - Top; } }
+  }
+  [StructLayout(LayoutKind.Sequential)] public struct MonitorInfo {
+    public int Size; public PhysicalRect Monitor, Work; public uint Flags;
+  }
+  public delegate bool MonitorProc(IntPtr monitor, IntPtr dc, ref PhysicalRect rect, IntPtr data);
+  [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+  [DllImport("user32.dll")] static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clip, MonitorProc callback, IntPtr data);
+  [DllImport("user32.dll")] static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+  public static PhysicalRect GetTargetRect() {
+    // IDesktopWallpaper uses the same physical rectangles as wallpaper placement.
+    var type = Type.GetTypeFromCLSID(new Guid("C2CF3110-460E-4FC1-B9D0-8A1C0C9CC4BD"));
+    var desktop = (IClockDesktopWallpaper)Activator.CreateInstance(type);
+    PhysicalRect primary = new PhysicalRect(), portrait = new PhysicalRect();
+    try {
+      for (uint i = 0; i < desktop.GetMonitorDevicePathCount(); i++) {
+        PhysicalRect rect;
+        if (desktop.GetMonitorRECT(desktop.GetMonitorDevicePathAt(i), out rect) != 0 || rect.Width <= 0 || rect.Height <= 0) continue;
+        if (primary.Width == 0 || (rect.Left == 0 && rect.Top == 0)) primary = rect;
+        if (rect.Height > rect.Width && portrait.Width == 0) portrait = rect;
+      }
+    } finally { Marshal.ReleaseComObject(desktop); }
+    return portrait.Width > 0 ? portrait : primary;
+  }
   public const int GWL_EXSTYLE = -20;
   public const int GWL_STYLE = -16;
   public const int WS_EX_TRANSPARENT = 0x20;
@@ -63,19 +98,12 @@ $script:lastPlacement = ""
 $script:clockMode = ""
 $script:dpiScale = [MoonClockNative]::GetDpiForSystem() / 96.0
 function Set-ClockPlacement {
-    $portrait = [System.Windows.Forms.Screen]::AllScreens |
-        Where-Object { $_.Bounds.Height -gt $_.Bounds.Width } |
-        Select-Object -First 1
-    $target = $portrait
-    if (-not $target) {
-        $target = [System.Windows.Forms.Screen]::AllScreens |
-            Where-Object { $_.Primary } |
-            Select-Object -First 1
-    }
-    if (-not $target) { return }
+    $bounds = [MoonClockNative]::GetTargetRect()
+    if ($bounds.Width -le 0) { return }
+    $portrait = $bounds.Height -gt $bounds.Width
 
     $mode = if ($portrait) { "portrait" } else { "landscape" }
-    $placement = "{0}|{1},{2},{3},{4}|{5}" -f $target.DeviceName, $target.Bounds.X, $target.Bounds.Y, $target.Bounds.Width, $target.Bounds.Height, $mode
+    $placement = "{0},{1},{2},{3}|{4}" -f $bounds.Left, $bounds.Top, $bounds.Width, $bounds.Height, $mode
     if ($placement -eq $script:lastPlacement) { return }
 
     if ($portrait) {
@@ -85,15 +113,15 @@ function Set-ClockPlacement {
         $window.Width = 430
         $window.Height = 145
         $renderedWidth = $window.Width * $script:dpiScale
-        $window.Left = ($target.Bounds.X + (($target.Bounds.Width - $renderedWidth) / 2)) / $script:dpiScale
-        $window.Top = $target.Bounds.Y + ($target.Bounds.Height * 0.245)
+        $window.Left = ($bounds.Left + (($bounds.Width - $renderedWidth) / 2)) / $script:dpiScale
+        $window.Top = ($bounds.Top + ($bounds.Height * 0.245)) / $script:dpiScale
     } else {
         $desiredWidth = 800
         $desiredHeight = 224
         $window.Width = $desiredWidth / $script:dpiScale
         $window.Height = $desiredHeight / $script:dpiScale
-        $window.Left = ($target.Bounds.X + (($target.Bounds.Width - $desiredWidth) / 2)) / $script:dpiScale
-        $window.Top = ($target.Bounds.Y + ($target.Bounds.Height * 0.04)) / $script:dpiScale
+        $window.Left = ($bounds.Left + (($bounds.Width - $desiredWidth) / 2)) / $script:dpiScale
+        $window.Top = ($bounds.Top + ($bounds.Height * 0.04)) / $script:dpiScale
     }
     $script:clockMode = $mode
     $script:lastPlacement = $placement
