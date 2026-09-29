@@ -36,6 +36,27 @@ public static class MoonClockNative {
   [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
   [DllImport("user32.dll")] static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clip, MonitorProc callback, IntPtr data);
   [DllImport("user32.dll")] static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+  [StructLayout(LayoutKind.Sequential)] public struct NativePoint { public int X, Y; }
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window, out PhysicalRect rect);
+  [DllImport("user32.dll")] static extern IntPtr GetParent(IntPtr window);
+  [DllImport("user32.dll")] static extern int MapWindowPoints(IntPtr from, IntPtr to, ref NativePoint point, uint count);
+  [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+  public static void AlignRenderedWindow(IntPtr window, double topFraction) {
+    if (window == IntPtr.Zero) return;
+    PhysicalRect target = GetTargetRect();
+    IntPtr previous = SetThreadDpiAwarenessContext(new IntPtr(-4));
+    try {
+      PhysicalRect actual;
+      if (!GetWindowRect(window, out actual)) return;
+      NativePoint destination = new NativePoint();
+      destination.X = target.Left + (target.Width - actual.Width) / 2;
+      destination.Y = target.Top + (int)Math.Round(target.Height * topFraction);
+      if (actual.Left == destination.X && actual.Top == destination.Y) return;
+      IntPtr parent = GetParent(window);
+      if (parent != IntPtr.Zero) MapWindowPoints(IntPtr.Zero, parent, ref destination, 1);
+      SetWindowPos(window, IntPtr.Zero, destination.X, destination.Y, 0, 0, 0x1 | 0x4 | 0x10);
+    } finally { SetThreadDpiAwarenessContext(previous); }
+  }
   public static PhysicalRect GetTargetRect() {
     // IDesktopWallpaper uses the same physical rectangles as wallpaper placement.
     var type = Type.GetTypeFromCLSID(new Guid("C2CF3110-460E-4FC1-B9D0-8A1C0C9CC4BD"));
@@ -209,9 +230,15 @@ function Update-Clock {
     $date.Text = "{0}, {1}. {2}, {3}" -f $now.ToString("ddd", $en), $now.ToString("MMM", $en), (Get-Ordinal $now.Day), $now.Year
 }
 
+function Align-RenderedClock {
+    $helper = New-Object System.Windows.Interop.WindowInteropHelper($window)
+    $fraction = if ($script:clockMode -eq "portrait") { 0.245 } else { 0.04 }
+    [MoonClockNative]::AlignRenderedWindow($helper.Handle, $fraction)
+}
+
 $timer = New-Object System.Windows.Threading.DispatcherTimer
 $timer.Interval = [TimeSpan]::FromSeconds(1)
-$timer.Add_Tick({ Set-ClockPlacement; Set-ClockTypography; Update-Clock })
+$timer.Add_Tick({ Set-ClockPlacement; Set-ClockTypography; Update-Clock; Align-RenderedClock })
 Update-Clock
 $window.Add_Closed({ $timer.Stop() })
 $timer.Start()
